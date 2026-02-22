@@ -33,6 +33,63 @@ Lives inside the `orderStream` repo as a separate, self-contained project.
    go run ./cmd/account
    ```
 
+## Run with Docker
+
+1. Build the image:
+
+   ```bash
+   docker build -t account-service .
+   ```
+
+2. Run the server (set `DATABASE_URL` and optionally `SECRET_KEY`, `ISSUER`):
+
+   ```bash
+   docker run --rm -p 8080:8080 --env-file .env account-service
+   ```
+
+   Or pass env vars explicitly:
+
+   ```bash
+   docker run --rm -p 8080:8080 \
+     -e DATABASE_URL="postgres://user:pass@host:5432/dbname?sslmode=disable" \
+     -e SECRET_KEY="your-jwt-secret" \
+     -e ISSUER="account-service" \
+     account-service
+   ```
+
+   Ensure `DATABASE_URL` points to a Postgres host reachable from the container (e.g. use your machine IP or `host.docker.internal` instead of `localhost`).
+
+### Quick test with Docker (from scratch)
+
+```bash
+# 1. Build image
+docker build -t account-service .
+
+# 2. Start Postgres and create network
+docker network create account-net
+docker run -d --name account-db --network account-net \
+  -e POSTGRES_USER=account -e POSTGRES_PASSWORD=secret -e POSTGRES_DB=accountdb \
+  postgres:16-alpine
+
+# 3. Apply migration (after Postgres is ready, ~3s)
+sleep 3
+docker exec -i account-db psql -U account -d accountdb < db/migrations/000001_create_accounts_table.up.sql
+
+# 4. Run the service
+docker run -d --name account-svc --network account-net -p 8080:8080 \
+  -e DATABASE_URL="postgres://account:secret@account-db:5432/accountdb?sslmode=disable" \
+  -e SECRET_KEY=test-secret -e ISSUER=account-service \
+  account-service
+
+# 5. Test API
+curl -s -X POST http://localhost:8080/register -H "Content-Type: application/json" \
+  -d '{"name":"Test User","email":"test@example.com","password":"password123"}'
+curl -s -X POST http://localhost:8080/login -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","password":"password123"}'
+```
+
+Cleanup: `docker rm -f account-svc account-db && docker network rm account-net`
+
 ## Environment
 
 | Variable       | Description                  |
