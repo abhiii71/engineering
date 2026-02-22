@@ -1,0 +1,52 @@
+syntax = "proto3";
+import  "google/protobuf/wrappers.proto";
+
+package pb;
+
+
+option go_package = "./pb";
+
+message Account {
+    uint64 id = 1;
+    string name  = 2;
+    string email = 3;
+}
+
+message LoginRequest {
+    string email = 1;
+    string password  = 2;
+}
+
+message RegisterRequest {
+    string name = 1;
+    string email = 2;
+    string password = 3;
+}
+
+message AccountResponse  {
+    Account account = 1;
+}
+
+message GetAccountsRequest {
+    uint64 skip = 1;
+    uint64 take = 2;
+}
+
+message GetAccountsResponse  {
+repeated Account accounts = 1;
+}
+
+
+service AccountService {
+    rpc Register(RegisterRequest) returns (google.protobuf.StringValue){
+    }
+
+    rpc Login(LoginRequest) returns(google.protobuf.StringValue){ 
+    }
+
+    rpc GetAccount(google.protobuf.UInt64Value) returns (AccountResponse){
+    }
+
+    rpc GetAccounts(GetAccountsRequest) returns (GetAccountsResponse){
+    }
+}
