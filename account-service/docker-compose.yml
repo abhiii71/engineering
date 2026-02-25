@@ -1,0 +1,22 @@
+# Single server = one container (app + database inside the same container).
+# Use "docker compose" (V2); avoid "docker-compose" (V1) with newer Docker to prevent ContainerConfig errors.
+# Start: docker compose up -d --build
+# Stop:  docker compose down
+
+services:
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile.single
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: "8080"
+      SECRET_KEY: "change-me-in-production"
+      ISSUER: "account-service"
+      # DATABASE_URL defaults in entrypoint to localhost inside container
+    volumes:
+      - pgdata:/app/pgdata
+
+volumes:
+  pgdata: {}

@@ -12,6 +12,54 @@ Lives inside the `orderStream` repo as a separate, self-contained project.
 - List accounts with pagination
 - PostgreSQL storage, REST API (JSON)
 
+## Single server setup
+
+A good way to learn system design is to start with a **single server**: one machine runs everything (web app, database, etc.). Later you can split things across many machines.
+
+**Figure 1-1 — Single server (one container)**
+
+```
+                    ┌─────────────────────────────────────────┐
+                    │           ONE CONTAINER                  │
+   Internet         │  ┌─────────────┐    ┌───────────────┐  │
+       │            │  │ Account     │    │   PostgreSQL  │  │
+       ▼            │  │ Service     │───▶│   (database)  │  │
+  ─────────         │  │ (REST API)  │    │               │  │
+       │            │  └─────────────┘    └───────────────┘  │
+       └───────────▶│         ▲                  │           │
+                    │         │    same container             │
+                    └─────────┼──────────────────┼───────────┘
+                              │                  │
+                         localhost           localhost
+```
+
+**Figure 1-2 — Request flow**
+
+1. **Client** sends HTTP request (e.g. POST /register) to the server.
+2. **Account service** receives it, talks to **PostgreSQL** on the same machine (e.g. insert user).
+3. **PostgreSQL** responds to the service.
+4. **Account service** returns HTTP response (e.g. JWT) to the client.
+
+All of this happens in one container: one place to deploy, one place to monitor, and the app talks to the DB over localhost inside the same container.
+
+The image is built from **Ubuntu**: we install PostgreSQL and Go manually in the Dockerfile (no separate Postgres image). One server = one container.
+
+**Run the single server (one container = app + DB):**
+
+```bash
+docker compose up -d --build
+```
+
+Then call the API at `http://localhost:8080` (register, login, etc.). The database and app run inside the same container; the migration runs automatically on startup.
+
+```bash
+# Quick test
+curl -s -X POST http://localhost:8080/register -H "Content-Type: application/json" \
+  -d '{"name":"Test","email":"test@example.com","password":"secret"}'
+```
+
+Stop and remove: `docker compose down` (add `-v` to remove the database volume). If port 8080 is already in use, change the port in `docker-compose.yml` (e.g. `"8082:8080"`). Use **docker compose** (V2), not the old `docker-compose` (V1), to avoid compatibility errors with current Docker.
+
 ## Prerequisites
 
 - Go ≥ 1.22
