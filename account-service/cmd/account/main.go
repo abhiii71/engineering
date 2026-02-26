@@ -51,8 +51,6 @@ func main() {
 	defer repository.Close()
 
 	port := config.Port
-	log.Printf("Account service (REST API) listening on port %d...", port)
-
 	svc := internal.NewService(repository)
 	log.Fatal(internal.ListenREST(svc, port))
 }
