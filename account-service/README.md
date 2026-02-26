@@ -58,6 +58,46 @@ curl -s -X POST http://localhost:8080/register -H "Content-Type: application/jso
 
 Stop and remove: `docker compose down` (add `-v` to remove the database volume). If port 8080 is already in use, change the port in `docker-compose.yml` (e.g. `"8082:8080"`). Use **docker compose** (V2), not the old `docker-compose` (V1), to avoid compatibility errors with current Docker.
 
+### Docker Compose reference
+
+The project includes a `docker-compose.yml` that runs the **single-server** setup: one container runs both the account service and PostgreSQL.
+
+| Item | Description |
+|------|-------------|
+| **Compose file** | `docker-compose.yml` |
+| **Dockerfile** | `Dockerfile.single` (builds app and runs Postgres inside the same image) |
+| **Service name** | `server` (single service) |
+| **Port** | Host `8080` → container `8080` (override in `ports` if needed) |
+| **Volume** | `pgdata` → `/app/pgdata` (PostgreSQL data; persists across restarts) |
+
+**Commands**
+
+| Command | Description |
+|---------|-------------|
+| `docker compose up -d --build` | Build image and start the container in the background |
+| `docker compose up --build` | Build and run in foreground (logs in terminal) |
+| `docker compose down` | Stop and remove the container |
+| `docker compose down -v` | Stop and remove the container **and** the `pgdata` volume (full reset) |
+| `docker compose logs -f server` | Stream logs from the `server` service |
+
+**Environment variables** (set in `docker-compose.yml` or override with `.env` / `environment`)
+
+| Variable | Default in compose | Description |
+|----------|--------------------|-------------|
+| `PORT` | `8080` | HTTP port inside the container |
+| `SECRET_KEY` | `change-me-in-production` | JWT signing secret; set a strong value in production |
+| `ISSUER` | `account-service` | JWT issuer claim |
+| `DATABASE_URL` | (set in entrypoint) | Postgres URL; entrypoint defaults to `postgres://account:secret@localhost:5432/accountdb?sslmode=disable` inside the container |
+
+**Overriding port or env**
+
+- Change host port: edit `ports` in `docker-compose.yml`, e.g. `"8082:8080"`.
+- Override env: add to the `environment` section or use an `.env` file in the same directory and run `docker compose up -d --build`.
+
+**Migrations**
+
+On first start, the container entrypoint runs migrations under `/app/migrations/` (e.g. `000001_create_accounts_table.up.sql`, `000002_create_transactions_and_activity_log.up.sql`). No manual migration step is needed when using Docker Compose.
+
 ## Prerequisites
 
 - Go ≥ 1.22
