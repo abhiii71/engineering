@@ -1,4 +1,4 @@
-module github.com/abhiii71/orderStream/account-service
+module github.com/abhiii71/engineering/account-service
 
 go 1.24.0
 

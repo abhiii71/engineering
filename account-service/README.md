@@ -2,8 +2,6 @@
 
 A **monolithic** Go project with a **REST API** for accounts: register, login, and account retrieval. Uses PostgreSQL. Not a microservice—single app, HTTP/JSON only.
 
-Lives inside the `orderStream` repo as a separate, self-contained project.
-
 ## Features
 
 - Register a new account
@@ -149,14 +147,18 @@ Cleanup: `docker rm -f account-svc account-db && docker network rm account-net`
 
 ## REST API
 
-| Method | Path           | Description        |
-|--------|----------------|--------------------|
-| POST   | /register      | Register; body: `{"name","email","password"}` → `{"token"}` |
-| POST   | /login         | Login; body: `{"email","password"}` → `{"token"}` |
-| GET    | /accounts/{id} | Get account by ID → `{"id","name","email"}` |
-| GET    | /accounts      | List accounts; query: `?skip=0&take=10` → `{"accounts":[...]}` |
+| Method | Path                         | Description        |
+|--------|------------------------------|--------------------|
+| POST   | /register                    | Register; body: `{"name","email","password"}` → `{"token"}` |
+| POST   | /login                       | Login; body: `{"email","password"}` → `{"token"}` |
+| GET    | /accounts/{id}               | Get account by ID → `{"id","name","email"}` |
+| GET    | /accounts                    | List accounts; query: `?skip=0&take=10` → `{"accounts":[...]}` |
+| POST   | /accounts/{id}/transactions  | Record a transaction; body: `{"amount_cents","kind":"credit\|debit","description"}` → transaction |
+| GET    | /accounts/{id}/transactions  | List transactions; query: `?skip=0&take=10` → `{"transactions":[...]}` |
+| POST   | /accounts/{id}/activity      | Log activity; body: `{"action","ip_address"}` → activity |
+| GET    | /accounts/{id}/activity      | List activity; query: `?skip=0&take=10` → `{"activity":[...]}` |
 
-All request/response bodies are JSON.
+All request/response bodies are JSON. Use **transactions** and **activity** endpoints to simulate concurrent writes and observe failure/load behaviour (e.g. run many simultaneous POSTs to the same account).
 
 ## Project layout
 

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/abhiii71/orderStream/account-service/config"
+	"github.com/abhiii71/engineering/account-service/config"
 	"github.com/golang-jwt/jwt/v5"
 )
 

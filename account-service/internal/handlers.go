@@ -2,8 +2,10 @@ package internal
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
+	"time"
 )
 
 // Request/response DTOs for REST API (no password in responses).
@@ -31,6 +33,42 @@ type AccountResponse struct {
 
 type AccountsListResponse struct {
 	Accounts []AccountResponse `json:"accounts"`
+}
+
+type RecordTransactionRequest struct {
+	AmountCents int64  `json:"amount_cents"`
+	Kind        string `json:"kind"` // "credit" or "debit"
+	Description string `json:"description"`
+}
+
+type TransactionResponse struct {
+	ID          uint64 `json:"id"`
+	AccountID   uint64 `json:"account_id"`
+	AmountCents int64  `json:"amount_cents"`
+	Kind        string `json:"kind"`
+	Description string `json:"description"`
+	CreatedAt   string `json:"created_at"`
+}
+
+type TransactionsListResponse struct {
+	Transactions []TransactionResponse `json:"transactions"`
+}
+
+type RecordActivityRequest struct {
+	Action    string `json:"action"`
+	IPAddress string `json:"ip_address"`
+}
+
+type ActivityResponse struct {
+	ID        uint64 `json:"id"`
+	AccountID uint64 `json:"account_id"`
+	Action    string `json:"action"`
+	IPAddress string `json:"ip_address"`
+	CreatedAt string `json:"created_at"`
+}
+
+type ActivityListResponse struct {
+	Activity []ActivityResponse `json:"activity"`
 }
 
 func (h *httpServer) handleRegister(w http.ResponseWriter, r *http.Request) {
@@ -153,6 +191,165 @@ func (h *httpServer) handleGetAccounts(w http.ResponseWriter, r *http.Request) {
 		list = append(list, AccountResponse{ID: a.ID, Name: a.Name, Email: a.Email})
 	}
 	writeJSON(w, http.StatusOK, AccountsListResponse{Accounts: list})
+}
+
+func (h *httpServer) handleRecordTransaction(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	accountID, err := parseAccountIDFromPath(r)
+	if err != nil {
+		writeJSONError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	var req RecordTransactionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSONError(w, "invalid body", http.StatusBadRequest)
+		return
+	}
+	if req.Kind == "" {
+		writeJSONError(w, "kind required (credit or debit)", http.StatusBadRequest)
+		return
+	}
+	tx, err := h.svc.RecordTransaction(r.Context(), accountID, req.AmountCents, req.Kind, req.Description)
+	if err != nil {
+		if err.Error() == "kind must be credit or debit" {
+			writeJSONError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		writeJSONError(w, "failed to record transaction", http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusCreated, TransactionResponse{
+		ID:          tx.ID,
+		AccountID:   tx.AccountID,
+		AmountCents: tx.AmountCents,
+		Kind:        tx.Kind,
+		Description: tx.Description,
+		CreatedAt:   tx.CreatedAt.Format(time.RFC3339),
+	})
+}
+
+func (h *httpServer) handleListTransactions(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	accountID, err := parseAccountIDFromPath(r)
+	if err != nil {
+		writeJSONError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	skip, take := parseSkipTake(r)
+	txs, err := h.svc.ListTransactions(r.Context(), accountID, skip, take)
+	if err != nil {
+		writeJSONError(w, "failed to list transactions", http.StatusInternalServerError)
+		return
+	}
+	list := make([]TransactionResponse, 0, len(txs))
+	for _, t := range txs {
+		list = append(list, TransactionResponse{
+			ID:          t.ID,
+			AccountID:   t.AccountID,
+			AmountCents: t.AmountCents,
+			Kind:        t.Kind,
+			Description: t.Description,
+			CreatedAt:   t.CreatedAt.Format(time.RFC3339),
+		})
+	}
+	writeJSON(w, http.StatusOK, TransactionsListResponse{Transactions: list})
+}
+
+func (h *httpServer) handleRecordActivity(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	accountID, err := parseAccountIDFromPath(r)
+	if err != nil {
+		writeJSONError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	var req RecordActivityRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSONError(w, "invalid body", http.StatusBadRequest)
+		return
+	}
+	if req.Action == "" {
+		writeJSONError(w, "action required", http.StatusBadRequest)
+		return
+	}
+	act, err := h.svc.RecordActivity(r.Context(), accountID, req.Action, req.IPAddress)
+	if err != nil {
+		writeJSONError(w, "failed to record activity", http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusCreated, ActivityResponse{
+		ID:        act.ID,
+		AccountID: act.AccountID,
+		Action:    act.Action,
+		IPAddress: act.IPAddress,
+		CreatedAt: act.CreatedAt.Format(time.RFC3339),
+	})
+}
+
+func (h *httpServer) handleListActivity(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	accountID, err := parseAccountIDFromPath(r)
+	if err != nil {
+		writeJSONError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	skip, take := parseSkipTake(r)
+	activities, err := h.svc.ListActivity(r.Context(), accountID, skip, take)
+	if err != nil {
+		writeJSONError(w, "failed to list activity", http.StatusInternalServerError)
+		return
+	}
+	list := make([]ActivityResponse, 0, len(activities))
+	for _, a := range activities {
+		list = append(list, ActivityResponse{
+			ID:        a.ID,
+			AccountID: a.AccountID,
+			Action:    a.Action,
+			IPAddress: a.IPAddress,
+			CreatedAt: a.CreatedAt.Format(time.RFC3339),
+		})
+	}
+	writeJSON(w, http.StatusOK, ActivityListResponse{Activity: list})
+}
+
+func parseAccountIDFromPath(r *http.Request) (uint64, error) {
+	idStr := r.PathValue("id")
+	if idStr == "" {
+		return 0, errors.New("id required")
+	}
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil {
+		return 0, errors.New("invalid id")
+	}
+	return id, nil
+}
+
+func parseSkipTake(r *http.Request) (skip, take uint64) {
+	if s := r.URL.Query().Get("skip"); s != "" {
+		if v, err := strconv.ParseUint(s, 10, 64); err == nil {
+			skip = v
+		}
+	}
+	if t := r.URL.Query().Get("take"); t != "" {
+		if v, err := strconv.ParseUint(t, 10, 64); err == nil {
+			take = v
+		}
+	}
+	if take == 0 {
+		take = 100
+	}
+	return skip, take
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

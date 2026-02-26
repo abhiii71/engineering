@@ -7,8 +7,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/abhiii71/orderStream/account-service/config"
-	"github.com/abhiii71/orderStream/account-service/internal"
+	"github.com/abhiii71/engineering/account-service/config"
+	"github.com/abhiii71/engineering/account-service/internal"
 	"github.com/joho/godotenv"
 	"github.com/tinrab/retry"
 
