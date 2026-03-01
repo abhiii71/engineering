@@ -127,11 +127,19 @@ func (h *httpServer) handleLogin(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, TokenResponse{Token: token})
 }
 
-func (h *httpServer) handleGetAccount(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
+// handleAccountByID dispatches GET and DELETE for /accounts/{id}.
+func (h *httpServer) handleAccountByID(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		h.handleGetAccount(w, r)
+	case http.MethodDelete:
+		h.handleDeleteAccount(w, r)
+	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
 	}
+}
+
+func (h *httpServer) handleGetAccount(w http.ResponseWriter, r *http.Request) {
 	idStr := r.PathValue("id")
 	if idStr == "" {
 		writeJSONError(w, "id required", http.StatusBadRequest)
@@ -194,10 +202,6 @@ func (h *httpServer) handleGetAccounts(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *httpServer) handleDeleteAccount(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodDelete {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
 	accountID, err := parseAccountIDFromPath(r)
 	if err != nil {
 		writeJSONError(w, err.Error(), http.StatusBadRequest)
