@@ -13,6 +13,7 @@ type AccountRepository interface {
 	GetAccountByEmail(ctx context.Context, email string) (*model.Account, error)
 	GetAccountByID(ctx context.Context, id uint64) (*model.Account, error)
 	ListAccounts(ctx context.Context, skip, take uint64) ([]model.Account, error)
+	DeleteAccount(ctx context.Context, id uint64) error
 	// Transactions
 	PutTransaction(ctx context.Context, t model.Transaction) (*model.Transaction, error)
 	ListTransactions(ctx context.Context, accountID uint64, skip, take uint64) ([]model.Transaction, error)
@@ -91,6 +92,19 @@ func (r *repo) ListAccounts(ctx context.Context, skip, take uint64) ([]model.Acc
 		accounts = append(accounts, account)
 	}
 	return accounts, nil
+}
+
+func (r *repo) DeleteAccount(ctx context.Context, id uint64) error {
+	query := `DELETE FROM accounts WHERE id = $1`
+	result, err := r.db.ExecContext(ctx, query, id)
+	if err != nil {
+		return err
+	}
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
 }
 
 func (r *repo) PutTransaction(ctx context.Context, t model.Transaction) (*model.Transaction, error) {

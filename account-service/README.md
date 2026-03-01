@@ -193,12 +193,368 @@ Cleanup: `docker rm -f account-svc account-db && docker network rm account-net`
 | POST   | /login                       | Login; body: `{"email","password"}` → `{"token"}` |
 | GET    | /accounts/{id}               | Get account by ID → `{"id","name","email"}` |
 | GET    | /accounts                    | List accounts; query: `?skip=0&take=10` → `{"accounts":[...]}` |
+| DELETE | /accounts/{id}               | Delete account (204 No Content) |
 | POST   | /accounts/{id}/transactions  | Record a transaction; body: `{"amount_cents","kind":"credit\|debit","description"}` → transaction |
 | GET    | /accounts/{id}/transactions  | List transactions; query: `?skip=0&take=10` → `{"transactions":[...]}` |
 | POST   | /accounts/{id}/activity      | Log activity; body: `{"action","ip_address"}` → activity |
 | GET    | /accounts/{id}/activity      | List activity; query: `?skip=0&take=10` → `{"activity":[...]}` |
 
 All request/response bodies are JSON. Use **transactions** and **activity** endpoints to simulate concurrent writes and observe failure/load behaviour (e.g. run many simultaneous POSTs to the same account).
+
+---
+
+## Testing the API
+
+Base URL (local): **`http://localhost:8080`**. All requests use `Content-Type: application/json` unless noted.
+
+### 1. Register
+
+Creates a new account and returns a JWT.
+
+| Item | Value |
+|------|--------|
+| **Method** | `POST` |
+| **Path** | `/register` |
+| **Request body** | `name` (string), `email` (string), `password` (string) |
+
+**Example request**
+
+```bash
+curl -s -X POST http://localhost:8080/register \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Alice","email":"alice@example.com","password":"secret123"}'
+```
+
+**Example response** (201 Created)
+
+```json
+{"token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."}
+```
+
+**Errors**
+
+- **400** — Missing or invalid body: `{"error":"name, email and password required"}`
+- **409** — Email already registered: `{"error":"account already exists"}`
+
+---
+
+### 2. Login
+
+Authenticates with email/password and returns a JWT.
+
+| Item | Value |
+|------|--------|
+| **Method** | `POST` |
+| **Path** | `/login` |
+| **Request body** | `email` (string), `password` (string) |
+
+**Example request**
+
+```bash
+curl -s -X POST http://localhost:8080/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"alice@example.com","password":"secret123"}'
+```
+
+**Example response** (200 OK)
+
+```json
+{"token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."}
+```
+
+**Errors**
+
+- **400** — Missing fields: `{"error":"email and password required"}`
+- **401** — Wrong email or password: `{"error":"invalid email or password"}`
+
+---
+
+### 3. Get account by ID
+
+Returns a single account by numeric ID (no auth required in current implementation).
+
+| Item | Value |
+|------|--------|
+| **Method** | `GET` |
+| **Path** | `/accounts/{id}` |
+| **Path params** | `id` — account ID (integer) |
+
+**Example request**
+
+```bash
+curl -s http://localhost:8080/accounts/1
+```
+
+**Example response** (200 OK)
+
+```json
+{"id":1,"name":"Alice","email":"alice@example.com"}
+```
+
+**Errors**
+
+- **400** — Missing or invalid id: `{"error":"id required"}` or `{"error":"invalid id"}`
+- **404** — Account not found: `{"error":"not found"}`
+
+---
+
+### 4. List accounts
+
+Returns a paginated list of accounts.
+
+| Item | Value |
+|------|--------|
+| **Method** | `GET` |
+| **Path** | `/accounts` |
+| **Query params** | `skip` (optional, default 0), `take` (optional, default 100) |
+
+**Example request**
+
+```bash
+curl -s "http://localhost:8080/accounts?skip=0&take=10"
+```
+
+**Example response** (200 OK)
+
+```json
+{
+  "accounts": [
+    {"id":1,"name":"Alice","email":"alice@example.com"},
+    {"id":2,"name":"Bob","email":"bob@example.com"}
+  ]
+}
+```
+
+**Errors**
+
+- **500** — Server error: `{"error":"failed to list accounts"}`
+
+---
+
+### 5. Delete account
+
+Deletes an account by ID. Related transactions and activity logs are removed (CASCADE).
+
+| Item | Value |
+|------|--------|
+| **Method** | `DELETE` |
+| **Path** | `/accounts/{id}` |
+| **Path params** | `id` — account ID (integer) |
+
+**Example request**
+
+```bash
+curl -s -X DELETE http://localhost:8080/accounts/1
+```
+
+**Example response** (204 No Content) — empty body.
+
+**Errors**
+
+- **400** — Invalid id: `{"error":"id required"}` or `{"error":"invalid id"}`
+- **404** — Account not found: `{"error":"not found"}`
+- **500** — Server error: `{"error":"failed to delete account"}`
+
+---
+
+### 6. Record transaction
+
+Adds a credit or debit transaction for an account.
+
+| Item | Value |
+|------|--------|
+| **Method** | `POST` |
+| **Path** | `/accounts/{id}/transactions` |
+| **Path params** | `id` — account ID |
+| **Request body** | `amount_cents` (integer), `kind` ("credit" or "debit"), `description` (string, optional) |
+
+**Example request**
+
+```bash
+curl -s -X POST http://localhost:8080/accounts/1/transactions \
+  -H "Content-Type: application/json" \
+  -d '{"amount_cents":1000,"kind":"credit","description":"Initial deposit"}'
+```
+
+**Example response** (201 Created)
+
+```json
+{
+  "id":1,
+  "account_id":1,
+  "amount_cents":1000,
+  "kind":"credit",
+  "description":"Initial deposit",
+  "created_at":"2025-03-01T12:00:00Z"
+}
+```
+
+**Errors**
+
+- **400** — Invalid id or body: `{"error":"kind required (credit or debit)"}` or `{"error":"kind must be credit or debit"}`
+- **500** — Server error: `{"error":"failed to record transaction"}`
+
+---
+
+### 7. List transactions
+
+Returns paginated transactions for an account.
+
+| Item | Value |
+|------|--------|
+| **Method** | `GET` |
+| **Path** | `/accounts/{id}/transactions` |
+| **Path params** | `id` — account ID |
+| **Query params** | `skip` (optional), `take` (optional, default 100) |
+
+**Example request**
+
+```bash
+curl -s "http://localhost:8080/accounts/1/transactions?skip=0&take=10"
+```
+
+**Example response** (200 OK)
+
+```json
+{
+  "transactions": [
+    {
+      "id":1,
+      "account_id":1,
+      "amount_cents":1000,
+      "kind":"credit",
+      "description":"Initial deposit",
+      "created_at":"2025-03-01T12:00:00Z"
+    }
+  ]
+}
+```
+
+**Errors**
+
+- **400** — Invalid id: `{"error":"id required"}` or `{"error":"invalid id"}`
+- **500** — Server error: `{"error":"failed to list transactions"}`
+
+---
+
+### 8. Record activity
+
+Logs an activity event for an account (e.g. login, IP).
+
+| Item | Value |
+|------|--------|
+| **Method** | `POST` |
+| **Path** | `/accounts/{id}/activity` |
+| **Path params** | `id` — account ID |
+| **Request body** | `action` (string), `ip_address` (string, optional) |
+
+**Example request**
+
+```bash
+curl -s -X POST http://localhost:8080/accounts/1/activity \
+  -H "Content-Type: application/json" \
+  -d '{"action":"login","ip_address":"192.168.1.1"}'
+```
+
+**Example response** (201 Created)
+
+```json
+{
+  "id":1,
+  "account_id":1,
+  "action":"login",
+  "ip_address":"192.168.1.1",
+  "created_at":"2025-03-01T12:00:00Z"
+}
+```
+
+**Errors**
+
+- **400** — Missing action or invalid id: `{"error":"action required"}`
+- **500** — Server error: `{"error":"failed to record activity"}`
+
+---
+
+### 9. List activity
+
+Returns paginated activity log entries for an account.
+
+| Item | Value |
+|------|--------|
+| **Method** | `GET` |
+| **Path** | `/accounts/{id}/activity` |
+| **Path params** | `id` — account ID |
+| **Query params** | `skip` (optional), `take` (optional, default 100) |
+
+**Example request**
+
+```bash
+curl -s "http://localhost:8080/accounts/1/activity?skip=0&take=10"
+```
+
+**Example response** (200 OK)
+
+```json
+{
+  "activity": [
+    {
+      "id":1,
+      "account_id":1,
+      "action":"login",
+      "ip_address":"192.168.1.1",
+      "created_at":"2025-03-01T12:00:00Z"
+    }
+  ]
+}
+```
+
+**Errors**
+
+- **400** — Invalid id: `{"error":"id required"}` or `{"error":"invalid id"}`
+- **500** — Server error: `{"error":"failed to list activity"}`
+
+---
+
+### Full test flow (copy-paste)
+
+Run with the service at `http://localhost:8080` (e.g. `docker compose up -d --build`).
+
+```bash
+# Register
+curl -s -X POST http://localhost:8080/register \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Test User","email":"test@example.com","password":"pass123"}'
+
+# Login
+curl -s -X POST http://localhost:8080/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","password":"pass123"}'
+
+# Get account (use id from DB or list; e.g. 1)
+curl -s http://localhost:8080/accounts/1
+
+# List accounts
+curl -s "http://localhost:8080/accounts?skip=0&take=10"
+
+# Add transaction
+curl -s -X POST http://localhost:8080/accounts/1/transactions \
+  -H "Content-Type: application/json" \
+  -d '{"amount_cents":500,"kind":"credit","description":"Test"}'
+
+# List transactions
+curl -s "http://localhost:8080/accounts/1/transactions?skip=0&take=10"
+
+# Log activity
+curl -s -X POST http://localhost:8080/accounts/1/activity \
+  -H "Content-Type: application/json" \
+  -d '{"action":"api_test","ip_address":"127.0.0.1"}'
+
+# List activity
+curl -s "http://localhost:8080/accounts/1/activity?skip=0&take=10"
+
+# Delete account (204, empty body)
+curl -s -w "\nHTTP %{http_code}\n" -X DELETE http://localhost:8080/accounts/1
+```
 
 ## Project layout
 

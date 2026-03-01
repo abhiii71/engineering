@@ -193,6 +193,28 @@ func (h *httpServer) handleGetAccounts(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, AccountsListResponse{Accounts: list})
 }
 
+func (h *httpServer) handleDeleteAccount(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	accountID, err := parseAccountIDFromPath(r)
+	if err != nil {
+		writeJSONError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	err = h.svc.DeleteAccount(r.Context(), accountID)
+	if err != nil {
+		if err.Error() == "account not found" {
+			writeJSONError(w, "not found", http.StatusNotFound)
+			return
+		}
+		writeJSONError(w, "failed to delete account", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (h *httpServer) handleRecordTransaction(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)

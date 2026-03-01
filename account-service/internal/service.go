@@ -14,6 +14,7 @@ type AccountService interface {
 	Login(ctx context.Context, email, password string) (string, error)
 	GetAccount(ctx context.Context, id uint64) (*model.Account, error)
 	GetAccounts(ctx context.Context, skip uint64, take uint64) ([]model.Account, error)
+	DeleteAccount(ctx context.Context, id uint64) error
 	RecordTransaction(ctx context.Context, accountID uint64, amountCents int64, kind, description string) (*model.Transaction, error)
 	ListTransactions(ctx context.Context, accountID uint64, skip, take uint64) ([]model.Transaction, error)
 	RecordActivity(ctx context.Context, accountID uint64, action, ipAddress string) (*model.ActivityLog, error)
@@ -92,6 +93,21 @@ func (s *service) GetAccounts(ctx context.Context, skip uint64, take uint64) ([]
 		take = 100
 	}
 	return s.repo.ListAccounts(ctx, skip, take)
+}
+
+func (s *service) DeleteAccount(ctx context.Context, id uint64) error {
+	account, err := s.repo.GetAccountByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if account == nil {
+		return errors.New("account not found")
+	}
+	err = s.repo.DeleteAccount(ctx, id)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *service) RecordTransaction(ctx context.Context, accountID uint64, amountCents int64, kind, description string) (*model.Transaction, error) {
