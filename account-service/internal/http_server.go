@@ -50,10 +50,6 @@ func ListenREST(svc AccountService, port int) error {
 	mux.HandleFunc("POST /login", h.handleLogin)
 	mux.HandleFunc("GET /accounts", h.handleGetAccounts)
 	mux.HandleFunc("/accounts/{id}", h.handleAccountByID)
-	mux.HandleFunc("POST /accounts/{id}/transactions", h.handleRecordTransaction)
-	mux.HandleFunc("GET /accounts/{id}/transactions", h.handleListTransactions)
-	mux.HandleFunc("POST /accounts/{id}/activity", h.handleRecordActivity)
-	mux.HandleFunc("GET /accounts/{id}/activity", h.handleListActivity)
 
 	addr := fmt.Sprintf(":%d", port)
 	log.Printf("Account service (REST API) listening on %s", addr)

@@ -15,10 +15,6 @@ type AccountService interface {
 	GetAccount(ctx context.Context, id uint64) (*model.Account, error)
 	GetAccounts(ctx context.Context, skip uint64, take uint64) ([]model.Account, error)
 	DeleteAccount(ctx context.Context, id uint64) error
-	RecordTransaction(ctx context.Context, accountID uint64, amountCents int64, kind, description string) (*model.Transaction, error)
-	ListTransactions(ctx context.Context, accountID uint64, skip, take uint64) ([]model.Transaction, error)
-	RecordActivity(ctx context.Context, accountID uint64, action, ipAddress string) (*model.ActivityLog, error)
-	ListActivity(ctx context.Context, accountID uint64, skip, take uint64) ([]model.ActivityLog, error)
 }
 
 type service struct {
@@ -108,43 +104,4 @@ func (s *service) DeleteAccount(ctx context.Context, id uint64) error {
 		return err
 	}
 	return nil
-}
-
-func (s *service) RecordTransaction(ctx context.Context, accountID uint64, amountCents int64, kind, description string) (*model.Transaction, error) {
-	if kind != "credit" && kind != "debit" {
-		return nil, errors.New("kind must be credit or debit")
-	}
-	t := model.Transaction{
-		AccountID:   accountID,
-		AmountCents: amountCents,
-		Kind:        kind,
-		Description: description,
-	}
-	return s.repo.PutTransaction(ctx, t)
-}
-
-func (s *service) ListTransactions(ctx context.Context, accountID uint64, skip, take uint64) ([]model.Transaction, error) {
-	if take > 100 || take == 0 {
-		take = 100
-	}
-	return s.repo.ListTransactions(ctx, accountID, skip, take)
-}
-
-func (s *service) RecordActivity(ctx context.Context, accountID uint64, action, ipAddress string) (*model.ActivityLog, error) {
-	if action == "" {
-		return nil, errors.New("action required")
-	}
-	a := model.ActivityLog{
-		AccountID: accountID,
-		Action:    action,
-		IPAddress: ipAddress,
-	}
-	return s.repo.PutActivityLog(ctx, a)
-}
-
-func (s *service) ListActivity(ctx context.Context, accountID uint64, skip, take uint64) ([]model.ActivityLog, error) {
-	if take > 100 || take == 0 {
-		take = 100
-	}
-	return s.repo.ListActivityLog(ctx, accountID, skip, take)
 }
